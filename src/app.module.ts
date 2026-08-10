@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmAsyncConfig } from './utils/config/database/config.service';
 import { join } from 'path';
 import { HeaderResolver, I18nModule } from 'nestjs-i18n';
+import { AlertsModule } from './alerts/alerts.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { HeaderResolver, I18nModule } from 'nestjs-i18n';
       },
       resolvers: [new HeaderResolver(['x-language'])],
     }),
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
