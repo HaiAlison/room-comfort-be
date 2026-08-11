@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Subject, Observable } from 'rxjs';
 import { Alert } from 'src/entity/alerts.entity';
 import { pagination } from 'src/utils/common/handle';
 import { PaginationResponse } from 'src/utils/common/interface';
@@ -9,10 +10,18 @@ import { AlertItemResponseDto } from './dto/alert-item.response.dto';
 
 @Injectable()
 export class AlertsService {
+  /** Event bus: emits every time a new Alert is persisted. */
+  private readonly alertCreated$ = new Subject<Alert>();
+
   constructor(
     @InjectRepository(Alert)
     private readonly alertsRepository: Repository<Alert>,
   ) {}
+
+  /** SSE stream — controller subscribes and pushes to connected FE clients. */
+  getAlertStream(): Observable<Alert> {
+    return this.alertCreated$.asObservable();
+  }
 
   /**
    * GET /alerts — list AlertItem[] with filters + pagination.
@@ -25,11 +34,10 @@ export class AlertsService {
   ): Promise<PaginationResponse<AlertItemResponseDto>> {
     const {
       roomId,
-      alertType,
-      alertStatus,
-      isResolved,
+      severity,
+      status,
+      resolved,
       isRead,
-      isMuted,
       from,
       to,
       limit,
@@ -41,15 +49,13 @@ export class AlertsService {
       .select([
         'alert.id',
         'alert.roomId',
-        'alert.alertType',
-        'alert.alertMessage',
-        'alert.alertStatus',
-        'alert.isResolved',
+        'alert.message',
+        'alert.status',
+        'alert.severity',
         'alert.resolvedAt',
         'alert.resolvedBy',
         'alert.threshold',
         'alert.isRead',
-        'alert.isMuted',
       ]);
 
     // --- Filter strategies ---
@@ -57,24 +63,20 @@ export class AlertsService {
       qb.andWhere('alert.roomId = :roomId', { roomId });
     }
 
-    if (alertType) {
-      qb.andWhere('alert.alertType = :alertType', { alertType });
+    if (severity) {
+      qb.andWhere('alert.severity = :severity', { severity });
     }
 
-    if (alertStatus) {
-      qb.andWhere('alert.alertStatus = :alertStatus', { alertStatus });
+    if (status) {
+      qb.andWhere('alert.status = :status', { status });
     }
 
-    if (isResolved !== undefined) {
-      qb.andWhere('alert.isResolved = :isResolved', { isResolved });
+    if (resolved !== undefined) {
+      qb.andWhere('alert.isResolved = :resolved', { resolved });
     }
 
     if (isRead !== undefined) {
       qb.andWhere('alert.isRead = :isRead', { isRead });
-    }
-
-    if (isMuted !== undefined) {
-      qb.andWhere('alert.isMuted = :isMuted', { isMuted });
     }
 
     // Date range filter on created_at
@@ -101,6 +103,9 @@ export class AlertsService {
    */
   async createAlert(payload: Partial<Alert>): Promise<Alert> {
     const alert = this.alertsRepository.create(payload);
-    return this.alertsRepository.save(alert);
+    const saved = await this.alertsRepository.save(alert);
+    // Notify all SSE subscribers that a new alert has been created
+    this.alertCreated$.next(saved);
+    return saved;
   }
 }
