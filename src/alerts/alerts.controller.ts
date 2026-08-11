@@ -1,9 +1,10 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Sse, MessageEvent } from '@nestjs/common';
 import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Observable, map } from 'rxjs';
 import { AlertsService } from './alerts.service';
 import { GetAlertsDto } from './dto/get-alerts.dto';
 import { AlertItemResponseDto } from './dto/alert-item.response.dto';
@@ -34,5 +35,26 @@ export class AlertsController {
   })
   getAlerts(@Query() dto: GetAlertsDto) {
     return this.alertsService.getAlerts(dto);
+  }
+
+  /**
+   * SSE endpoint — FE connects once, server pushes new alerts in real-time.
+   *
+   * Usage (FE):
+   *   const es = new EventSource('/alerts/events');
+   *   es.onmessage = (e) => console.log(JSON.parse(e.data));
+   *
+   * Each event:  { data: AlertItem }
+   */
+  @Sse('events')
+  @ApiOperation({
+    summary: 'SSE stream — nhận thông báo real-time khi có Alert mới',
+    description:
+      'FE mở kết nối 1 lần. Mỗi khi ThresholdService tạo Alert mới, server tự động push event xuống.',
+  })
+  alertEvents(): Observable<MessageEvent> {
+    return this.alertsService.getAlertStream().pipe(
+      map((alert) => ({ data: alert } as MessageEvent)),
+    );
   }
 }

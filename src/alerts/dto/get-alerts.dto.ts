@@ -9,21 +9,21 @@ export class GetAlertsDto extends FromToCommonDto {
   @IsOptional()
   roomId?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by alert type (e.g. temperature, humidity)' })
+  @ApiPropertyOptional({ description: 'Filter by alert severity' })
   @IsString()
   @IsOptional()
-  alertType?: string;
+  severity?: string;
 
   @ApiPropertyOptional({ description: 'Filter by alert status' })
   @IsString()
   @IsOptional()
-  alertStatus?: string;
+  status?: string;
 
   @ApiPropertyOptional({ description: 'Filter resolved / unresolved alerts' })
   @IsBoolean()
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
-  isResolved?: boolean;
+  resolved?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter read / unread alerts' })
   @IsBoolean()
@@ -31,9 +31,4 @@ export class GetAlertsDto extends FromToCommonDto {
   @Transform(({ value }) => value === 'true' || value === true)
   isRead?: boolean;
 
-  @ApiPropertyOptional({ description: 'Filter muted / unmuted alerts' })
-  @IsBoolean()
-  @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
-  isMuted?: boolean;
 }
