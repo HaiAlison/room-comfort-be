@@ -1,25 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { EAlertStatus, EAlertSeverity } from 'src/utils/common/type';
 
 export class AlertItemResponseDto {
   @ApiProperty()
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({ name: 'room_id' })
   roomId: string;
 
-  @ApiProperty()
-  alertType: string;
+  @ApiProperty({ enum: EAlertSeverity, default: EAlertSeverity.INFO })
+  severity: EAlertSeverity;
 
   @ApiProperty()
-  alertMessage: string;
+  message: string;
 
-  @ApiProperty()
-  alertStatus: string;
+  @ApiProperty({ enum: EAlertStatus, default: EAlertStatus.ACTIVE })
+  status: EAlertStatus;
 
-  @ApiProperty()
-  isResolved: boolean;
-
-  @ApiPropertyOptional({ type: Date, nullable: true })
+  @ApiPropertyOptional({ type: 'timestamptz', nullable: true })
   resolvedAt: Date | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -36,6 +34,4 @@ export class AlertItemResponseDto {
   @ApiProperty()
   isRead: boolean;
 
-  @ApiProperty()
-  isMuted: boolean;
 }

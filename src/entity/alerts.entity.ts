@@ -1,22 +1,20 @@
+import { EAlertSeverity, EAlertStatus } from "src/utils/common/type";
 import { BaseTimeStampEntity } from "src/utils/config/database/base-entity";
 import { Column, Entity } from "typeorm";
 
 @Entity("alerts")
 export class Alert extends BaseTimeStampEntity {
-    @Column({ name: 'room_id' })
+    @Column({ name: 'room_id', nullable: true })
     roomId: string;
 
-    @Column({ name: 'alert_type' })
-    alertType: string;
+    @Column({ enum: EAlertSeverity, default: EAlertSeverity.INFO })
+    severity: EAlertSeverity;
 
-    @Column({ name: 'alert_message' })
-    alertMessage: string;
+    @Column({ name: 'message' })
+    message: string;
 
-    @Column({ name: 'alert_status' })
-    alertStatus: string;
-
-    @Column({ name: 'is_resolved', default: false })
-    isResolved: boolean;
+    @Column({ enum: EAlertStatus, default: EAlertStatus.ACTIVE })
+    status: EAlertStatus;
 
     @Column({ name: 'resolved_at', nullable: true })
     resolvedAt: Date;
@@ -29,7 +27,4 @@ export class Alert extends BaseTimeStampEntity {
 
     @Column({ name: 'is_read', default: false })
     isRead: boolean;
-
-    @Column({ name: 'is_muted', default: false })
-    isMuted: boolean;
 }
