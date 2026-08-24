@@ -18,5 +18,8 @@ import { ThresholdModule } from 'src/threshold/threshold.module';
   providers: [
     MonitoringService,
   ],
+  exports: [
+  MonitoringService,
+],
 })
 export class MonitoringModule {}

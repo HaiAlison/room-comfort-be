@@ -84,4 +84,19 @@ export class MonitoringService {
         limit,
     };
   }
+
+  async saveSensorReading(
+    roomId: string,
+    temperature: number,
+    ) {
+    const reading =
+        this.sensorReadingRepository.create({
+        roomId,
+        temperature,
+        });
+
+    return this.sensorReadingRepository.save(
+        reading,
+    );
+    }
 }
