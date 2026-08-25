@@ -1,5 +1,6 @@
-import { Controller, Get, Query, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Get, Query, Sse, MessageEvent, Post, Body } from '@nestjs/common';
 import {
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -8,6 +9,7 @@ import { Observable, map } from 'rxjs';
 import { AlertsService } from './alerts.service';
 import { GetAlertsDto } from './dto/get-alerts.dto';
 import { AlertItemResponseDto } from './dto/alert-item.response.dto';
+import { Alert } from 'src/entity/alerts.entity';
 
 // TODO: Add @ApiBearerAuth() + JwtAuthGuard when JWT module is ready
 
@@ -15,6 +17,18 @@ import { AlertItemResponseDto } from './dto/alert-item.response.dto';
 @Controller('alerts')
 export class AlertsController {
   constructor(private readonly alertsService: AlertsService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Tạo Alert mới' })
+  @ApiCreatedResponse({
+    description: 'Alert đã được tạo',
+    schema: {
+      $ref: '#/components/schemas/AlertItemResponseDto',
+    },
+  })
+  createAlert(@Body() dto: Partial<Alert>): Promise<Alert> {
+    return this.alertsService.createAlert(dto);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách Alert (có phân trang và filter)' })

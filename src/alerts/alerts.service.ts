@@ -56,7 +56,7 @@ export class AlertsService {
         'alert.resolvedBy',
         'alert.threshold',
         'alert.isRead',
-      ]);
+      ]).addSelect('alert.timestamp');
 
     // --- Filter strategies ---
     if (roomId) {
