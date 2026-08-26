@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Sse, MessageEvent, Post, Body } from '@nestjs/common';
+import { Controller, Get, Query, Sse, MessageEvent, Post, Body, Patch, Param } from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -28,6 +28,18 @@ export class AlertsController {
   })
   createAlert(@Body() dto: Partial<Alert>): Promise<Alert> {
     return this.alertsService.createAlert(dto);
+  }
+
+  @Patch(':id/resolve')
+  @ApiOperation({ summary: 'Đánh dấu đã đọc Alert' })
+  @ApiOkResponse({
+    description: 'Alert đã được đánh dấu đã đọc',
+    schema: {
+      $ref: '#/components/schemas/AlertItemResponseDto',
+    },
+  })
+  resolveAlert(@Param('id') id: string, @Body() dto: Partial<Alert>): Promise<Alert> {
+    return this.alertsService.resolveAlert(id, dto);
   }
 
   @Get()
