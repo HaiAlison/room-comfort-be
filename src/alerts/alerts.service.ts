@@ -7,6 +7,7 @@ import { pagination } from 'src/utils/common/handle';
 import { PaginationResponse } from 'src/utils/common/interface';
 import { GetAlertsDto } from './dto/get-alerts.dto';
 import { AlertItemResponseDto } from './dto/alert-item.response.dto';
+import { EAlertStatus } from 'src/utils/common/type';
 
 @Injectable()
 export class AlertsService {
@@ -56,7 +57,7 @@ export class AlertsService {
         'alert.resolvedBy',
         'alert.threshold',
         'alert.isRead',
-      ]);
+      ]).addSelect('alert.timestamp');
 
     // --- Filter strategies ---
     if (roomId) {
@@ -106,6 +107,17 @@ export class AlertsService {
     const saved = await this.alertsRepository.save(alert);
     // Notify all SSE subscribers that a new alert has been created
     this.alertCreated$.next(saved);
+    return saved;
+  }
+
+  async resolveAlert(id: string, dto: Partial<Alert>): Promise<Alert> {
+    const alert = await this.alertsRepository.findOneBy({ id, });
+    if (!alert) {
+      throw new Error('Alert not found');
+    }
+    alert.isRead = true;
+    alert.status = EAlertStatus.RESOLVED;
+    const saved = await this.alertsRepository.save(alert);
     return saved;
   }
 }
