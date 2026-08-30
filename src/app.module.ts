@@ -7,6 +7,7 @@ import { typeOrmAsyncConfig } from './utils/config/database/config.service';
 import { join } from 'path';
 import { HeaderResolver, I18nModule } from 'nestjs-i18n';
 import { AlertsModule } from './alerts/alerts.module';
+import { DevicesModule } from './devices/devices.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { MqttModule } from './mqtt/mqtt.module';
 
@@ -24,6 +25,7 @@ import { MqttModule } from './mqtt/mqtt.module';
       resolvers: [new HeaderResolver(['x-language'])],
     }),
     AlertsModule,
+    DevicesModule,
     MonitoringModule,
     MqttModule,
   ],
