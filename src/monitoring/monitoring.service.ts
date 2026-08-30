@@ -86,13 +86,15 @@ export class MonitoringService {
   }
 
   async saveSensorReading(
-    roomId: string,
     temperature: number,
+    humidity: number,
+    roomId?: string,
     ) {
     const reading =
         this.sensorReadingRepository.create({
         roomId,
         temperature,
+        humidity,
         });
 
     return this.sensorReadingRepository.save(

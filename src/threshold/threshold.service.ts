@@ -1,10 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { Threshold } from 'src/entity/threshold.entity';
 import { UpdateThresholdDto } from './dto/update-threshold.dto';
+
 export type FanCommand =
   'ON' | 'OFF';
+
 @Injectable()
 export class ThresholdService {
   constructor(
@@ -22,19 +28,33 @@ export class ThresholdService {
   async updateThreshold(
     dto: UpdateThresholdDto,
   ) {
+    if (
+      dto.minimumTemperature >=
+      dto.maximumTemperature
+    ) {
+      throw new BadRequestException(
+        'Minimum temperature must be lower than maximum temperature',
+      );
+    }
+
     let threshold =
-      await this.thresholdRepository
-        .createQueryBuilder('threshold')
-        .getOne();
+      await this.getThreshold();
 
     if (!threshold) {
       threshold =
         this.thresholdRepository.create({
-          temperature: dto.temperature,
+          minimumTemperature:
+            dto.minimumTemperature,
+
+          maximumTemperature:
+            dto.maximumTemperature,
         });
     } else {
-      threshold.temperature =
-        dto.temperature;
+      threshold.minimumTemperature =
+        dto.minimumTemperature;
+
+      threshold.maximumTemperature =
+        dto.maximumTemperature;
     }
 
     return this.thresholdRepository.save(
@@ -44,21 +64,21 @@ export class ThresholdService {
 
   async evaluateTemperature(
     temperature: number,
-    ): Promise<FanCommand | null> {
+  ): Promise<FanCommand | null> {
     const threshold =
-        await this.getThreshold();
+      await this.getThreshold();
 
     if (!threshold) {
-        return null;
+      return null;
     }
 
     if (
-        temperature >
-        threshold.temperature
+      temperature >
+      threshold.maximumTemperature
     ) {
-        return 'OFF';
+      return 'ON';
     }
 
-    return 'ON';
-    }
+    return 'OFF';
+  }
 }

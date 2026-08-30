@@ -4,10 +4,16 @@ import { IsNumber } from 'class-validator';
 
 export class UpdateThresholdDto {
   @ApiProperty({
-    example: 30,
-    description: 'Ngưỡng nhiệt độ',
+    example: 20,
   })
   @Type(() => Number)
   @IsNumber()
-  temperature: number;
+  minimumTemperature: number;
+
+  @ApiProperty({
+    example: 30,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  maximumTemperature: number;
 }

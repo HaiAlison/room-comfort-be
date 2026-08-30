@@ -18,14 +18,20 @@ import {
 
 @Injectable()
 export class MqttService
-  implements
-    OnModuleInit,
-    OnModuleDestroy
+  implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger =
     new Logger(MqttService.name);
 
   private client?: MqttClient;
+
+  // Giữ tạm temperature và humidity
+  // vì chúng đến từ 2 MQTT topic khác nhau
+  private pendingTemperature: number | null =
+    null;
+
+  private pendingHumidity: number | null =
+    null;
 
   constructor(
     private readonly configService:
@@ -46,8 +52,7 @@ export class MqttService
     const url =
       this.configService.get<string>(
         'MQTT_URL',
-      ) ??
-      'mqtt://20.3.145.60:1883';
+      );
 
     const username =
       this.configService.get<string>(
@@ -58,6 +63,13 @@ export class MqttService
       this.configService.get<string>(
         'MQTT_PASSWORD',
       );
+
+    if (!url) {
+      this.logger.error(
+        'MQTT_URL is not configured',
+      );
+      return;
+    }
 
     this.client = connect(url, {
       username,
@@ -72,17 +84,26 @@ export class MqttService
           'Connected to MQTT broker',
         );
 
-        this.subscribeTemperature();
+        this.subscribeSensorTopics();
       },
     );
 
     this.client.on(
       'message',
       async (topic, payload) => {
-        await this.handleMessage(
-          topic,
-          payload,
-        );
+        try {
+          await this.handleMessage(
+            topic,
+            payload,
+          );
+        } catch (error) {
+          this.logger.error(
+            'Error handling MQTT message',
+            error instanceof Error
+              ? error.stack
+              : undefined,
+          );
+        }
       },
     );
 
@@ -94,28 +115,61 @@ export class MqttService
         );
       },
     );
+
+    this.client.on(
+      'reconnect',
+      () => {
+        this.logger.warn(
+          'Reconnecting to MQTT broker...',
+        );
+      },
+    );
   }
 
-  private subscribeTemperature() {
-    const topic =
+  private subscribeSensorTopics() {
+    const temperatureTopic =
       this.configService.get<string>(
         'MQTT_TEMPERATURE_TOPIC',
-      ) ??
-      'test/temperature';
+      );
+
+    const humidityTopic =
+      this.configService.get<string>(
+        'MQTT_HUMIDITY_TOPIC',
+      );
+
+    if (!temperatureTopic) {
+      this.logger.error(
+        'MQTT_TEMPERATURE_TOPIC is not configured',
+      );
+      return;
+    }
+
+    if (!humidityTopic) {
+      this.logger.error(
+        'MQTT_HUMIDITY_TOPIC is not configured',
+      );
+      return;
+    }
 
     this.client?.subscribe(
-      topic,
+      [
+        temperatureTopic,
+        humidityTopic,
+      ],
       (error) => {
         if (error) {
           this.logger.error(
-            `Cannot subscribe to ${topic}`,
+            `Cannot subscribe sensor topics: ${error.message}`,
           );
-
           return;
         }
 
         this.logger.log(
-          `Subscribed to ${topic}`,
+          `Subscribed to ${temperatureTopic}`,
+        );
+
+        this.logger.log(
+          `Subscribed to ${humidityTopic}`,
         );
       },
     );
@@ -128,84 +182,129 @@ export class MqttService
     const temperatureTopic =
       this.configService.get<string>(
         'MQTT_TEMPERATURE_TOPIC',
-      ) ??
-      'test/temperature';
+      );
 
-    if (topic !== temperatureTopic) {
+    const humidityTopic =
+      this.configService.get<string>(
+        'MQTT_HUMIDITY_TOPIC',
+      );
+
+    if (topic === temperatureTopic) {
+      await this.handleTemperatureMessage(
+        payload,
+      );
+
       return;
     }
 
+    if (topic === humidityTopic) {
+      await this.handleHumidityMessage(
+        payload,
+      );
+    }
+  }
+
+  private async handleTemperatureMessage(
+    payload: Buffer,
+  ) {
     const temperature =
-      this.parseTemperature(payload);
+      this.parseNumber(payload);
 
     if (temperature === null) {
       this.logger.warn(
         `Invalid temperature payload: ${payload.toString()}`,
       );
-
       return;
     }
+
+    this.pendingTemperature =
+      temperature;
 
     this.logger.log(
       `Temperature received: ${temperature}`,
     );
 
-    await this.handleTemperature(
+    // Fan chỉ phụ thuộc temperature,
+    // nên kiểm tra threshold ngay
+    await this.evaluateFan(
       temperature,
     );
+
+    // Nếu humidity cũng đã tới,
+    // lưu một SensorReading hoàn chỉnh
+    await this.saveReadingIfReady();
   }
 
-  private parseTemperature(
+  private async handleHumidityMessage(
     payload: Buffer,
-  ): number | null {
-    const raw =
-      payload.toString().trim();
+  ) {
+    const humidity =
+      this.parseNumber(payload);
 
-    const directValue =
-      Number(raw);
-
-    if (
-      Number.isFinite(directValue)
-    ) {
-      return directValue;
+    if (humidity === null) {
+      this.logger.warn(
+        `Invalid humidity payload: ${payload.toString()}`,
+      );
+      return;
     }
 
-    try {
-      const data =
-        JSON.parse(raw);
+    this.pendingHumidity =
+      humidity;
 
-      const temperature =
-        Number(data.temperature);
+    this.logger.log(
+      `Humidity received: ${humidity}`,
+    );
 
-      if (
-        Number.isFinite(
-          temperature,
-        )
-      ) {
-        return temperature;
-      }
-    } catch {
+    await this.saveReadingIfReady();
+  }
+
+  private parseNumber(
+    payload: Buffer,
+  ): number | null {
+    const value = Number(
+      payload.toString().trim(),
+    );
+
+    if (!Number.isFinite(value)) {
       return null;
     }
 
-    return null;
+    return value;
   }
 
-  private async handleTemperature(
-    temperature: number,
-  ) {
-    const roomId =
-      this.configService.get<string>(
-        'MQTT_ROOM_ID',
-      ) ??
-      'room-1';
+  private async saveReadingIfReady() {
+    if (
+      this.pendingTemperature === null ||
+      this.pendingHumidity === null
+    ) {
+      return;
+    }
+
+    const temperature =
+      this.pendingTemperature;
+
+    const humidity =
+      this.pendingHumidity;
 
     await this.monitoringService
       .saveSensorReading(
-        roomId,
         temperature,
+        humidity,
       );
 
+    this.logger.log(
+      `Sensor reading saved: temperature=${temperature}, humidity=${humidity}`,
+    );
+
+    // Đã ghép thành một record rồi
+    // thì reset để chờ cặp dữ liệu tiếp theo
+    this.pendingTemperature = null;
+    this.pendingHumidity = null;
+  }
+
+  private async evaluateFan(
+    temperature: number,
+  ) {
     const command =
       await this.thresholdService
         .evaluateTemperature(
@@ -216,7 +315,6 @@ export class MqttService
       this.logger.warn(
         'No threshold configured',
       );
-
       return;
     }
 
@@ -228,23 +326,27 @@ export class MqttService
   private publishFanCommand(
     command: FanCommand,
   ) {
-    const topic =
+    const fanTopic =
       this.configService.get<string>(
         'MQTT_FAN_TOPIC',
-      ) ??
-      'test/fan';
+      );
+
+    if (!fanTopic) {
+      this.logger.error(
+        'MQTT_FAN_TOPIC is not configured',
+      );
+      return;
+    }
 
     const onPayload =
       this.configService.get<string>(
         'MQTT_FAN_ON_PAYLOAD',
-      ) ??
-      'ON';
+      ) ?? '1';
 
     const offPayload =
       this.configService.get<string>(
         'MQTT_FAN_OFF_PAYLOAD',
-      ) ??
-      'OFF';
+      ) ?? '0';
 
     const payload =
       command === 'ON'
@@ -252,14 +354,13 @@ export class MqttService
         : offPayload;
 
     this.client?.publish(
-      topic,
+      fanTopic,
       payload,
       (error) => {
         if (error) {
           this.logger.error(
             `Cannot publish fan command: ${error.message}`,
           );
-
           return;
         }
 
