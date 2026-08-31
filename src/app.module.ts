@@ -7,6 +7,7 @@ import { typeOrmAsyncConfig } from './utils/config/database/config.service';
 import { join } from 'path';
 import { HeaderResolver, I18nModule } from 'nestjs-i18n';
 import { AlertsModule } from './alerts/alerts.module';
+import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AlertsModule } from './alerts/alerts.module';
       resolvers: [new HeaderResolver(['x-language'])],
     }),
     AlertsModule,
+    ActivityLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
