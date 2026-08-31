@@ -147,6 +147,7 @@ export class AlertsService {
         {
           description: `Alert ${id} resolved`,
           result: 'success',
+          type: 'alert',
           metadata: { alertId: saved.id, roomId: saved.roomId, severity: saved.severity },
         },
         { userId: 'system' },
@@ -157,6 +158,7 @@ export class AlertsService {
         {
           description: `Failed to resolve alert ${id}`,
           result: 'error',
+          type: 'alert',
           metadata: { alertId: id, error: error.message },
         },
         { userId: 'system' },
