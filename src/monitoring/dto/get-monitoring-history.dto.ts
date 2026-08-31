@@ -31,13 +31,13 @@ export class GetMonitoringHistoryDto {
   to?: string;
 
   @ApiPropertyOptional({
-    default: 20,
+    default: 1000,
   })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
-  limit?: number = 20;
+  limit?: number = 1000;
 
   @ApiPropertyOptional({
     default: 0,

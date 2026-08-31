@@ -3,6 +3,7 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -32,6 +33,19 @@ export class MqttService
 
   private pendingHumidity: number | null =
     null;
+  private fanOn = false;
+
+private fanMode: 'auto' | 'manual' =
+  'auto';
+
+private fanReason:
+  | 'Temperature exceeded threshold'
+  | 'Temperature normalized'
+  | 'Manual override' =
+  'Temperature normalized';
+
+private fanUpdatedAt =
+  new Date().toISOString();
 
   constructor(
     private readonly configService:
@@ -74,7 +88,7 @@ export class MqttService
     this.client = connect(url, {
       username,
       password,
-      reconnectPeriod: 5000,
+      reconnectPeriod: 0,
     });
 
     this.client.on(
@@ -303,75 +317,173 @@ export class MqttService
   }
 
   private async evaluateFan(
-    temperature: number,
-  ) {
-    const command =
-      await this.thresholdService
-        .evaluateTemperature(
-          temperature,
-        );
+  temperature: number,
+) {
+  if (this.fanMode === 'manual') {
+    return;
+  }
 
-    if (!command) {
-      this.logger.warn(
-        'No threshold configured',
+  const command =
+    await this.thresholdService
+      .evaluateTemperature(
+        temperature,
       );
-      return;
-    }
 
-    this.publishFanCommand(
-      command,
+  if (!command) {
+    this.logger.warn(
+      'No threshold configured',
+    );
+    return;
+  }
+
+  const reason =
+    command === 'ON'
+      ? 'Temperature exceeded threshold'
+      : 'Temperature normalized';
+
+  await this.publishFanCommand(
+    command,
+    reason,
+  );
+}
+
+  private async publishFanCommand(
+  command: FanCommand,
+  reason:
+    | 'Temperature exceeded threshold'
+    | 'Temperature normalized'
+    | 'Manual override',
+) {
+  const fanTopic =
+    this.configService.get<string>(
+      'MQTT_FAN_TOPIC',
+    );
+
+  if (!fanTopic) {
+    this.logger.error(
+      'MQTT_FAN_TOPIC is not configured',
+    );
+
+    throw new ServiceUnavailableException(
+      'MQTT fan topic is not configured',
     );
   }
 
-  private publishFanCommand(
-    command: FanCommand,
-  ) {
-    const fanTopic =
-      this.configService.get<string>(
-        'MQTT_FAN_TOPIC',
-      );
+  const onPayload =
+    this.configService.get<string>(
+      'MQTT_FAN_ON_PAYLOAD',
+    ) ?? '1';
 
-    if (!fanTopic) {
-      this.logger.error(
-        'MQTT_FAN_TOPIC is not configured',
-      );
-      return;
-    }
+  const offPayload =
+    this.configService.get<string>(
+      'MQTT_FAN_OFF_PAYLOAD',
+    ) ?? '0';
 
-    const onPayload =
-      this.configService.get<string>(
-        'MQTT_FAN_ON_PAYLOAD',
-      ) ?? '1';
+  const payload =
+    command === 'ON'
+      ? onPayload
+      : offPayload;
 
-    const offPayload =
-      this.configService.get<string>(
-        'MQTT_FAN_OFF_PAYLOAD',
-      ) ?? '0';
-
-    const payload =
-      command === 'ON'
-        ? onPayload
-        : offPayload;
-
-    this.client?.publish(
-      fanTopic,
-      payload,
-      (error) => {
-        if (error) {
-          this.logger.error(
-            `Cannot publish fan command: ${error.message}`,
-          );
-          return;
-        }
-
-        this.logger.log(
-          `Fan command sent: ${payload}`,
-        );
-      },
+  if (!this.client?.connected) {
+    throw new ServiceUnavailableException(
+      'MQTT broker is not connected',
     );
   }
+
+  await new Promise<void>(
+    (resolve, reject) => {
+      this.client!.publish(
+        fanTopic,
+        payload,
+        (error) => {
+          if (error) {
+            this.logger.error(
+              `Cannot publish fan command: ${error.message}`,
+            );
+
+            reject(error);
+            return;
+          }
+
+          resolve();
+        },
+      );
+    },
+  );
+
+  this.fanOn =
+    command === 'ON';
+
+  this.fanReason =
+    reason;
+
+  this.fanUpdatedAt =
+    new Date().toISOString();
+
+  this.logger.log(
+    `Fan command sent: ${payload}`,
+  );
+}
 
   onModuleDestroy() {
     this.client?.end();
   }
+
+  getFanState() {
+  return {
+    on: this.fanOn,
+    reason: this.fanReason,
+    mode: this.fanMode,
+    updatedAt: this.fanUpdatedAt,
+  };
+}
+
+  async setManualFan(
+  on: boolean,
+) {
+  const previousMode =
+    this.fanMode;
+
+  this.fanMode =
+    'manual';
+
+  try {
+    await this.publishFanCommand(
+      on ? 'ON' : 'OFF',
+      'Manual override',
+    );
+  } catch (error) {
+    this.fanMode =
+      previousMode;
+
+    throw error;
+  }
+
+  return this.getFanState();
+}
+
+  async setFanMode(
+  mode: 'auto' | 'manual',
+) {
+  this.fanMode =
+    mode;
+
+  this.fanUpdatedAt =
+    new Date().toISOString();
+
+  if (mode === 'auto') {
+    const reading =
+      await this.monitoringService
+        .getCurrentTemperature();
+
+    if (reading) {
+      await this.evaluateFan(
+        reading.temperature,
+      );
+    }
+  }
+
+  return this.getFanState();
+}
+
 }
