@@ -8,6 +8,9 @@ import { join } from 'path';
 import { HeaderResolver, I18nModule } from 'nestjs-i18n';
 import { AlertsModule } from './alerts/alerts.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
+import { DevicesModule } from './devices/devices.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { MqttModule } from './mqtt/mqtt.module';
 
 @Module({
   imports: [
@@ -24,6 +27,9 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
     }),
     AlertsModule,
     ActivityLogsModule,
+    DevicesModule,
+    MonitoringModule,
+    MqttModule,
   ],
   controllers: [AppController],
   providers: [AppService],
