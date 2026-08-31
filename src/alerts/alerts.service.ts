@@ -75,7 +75,10 @@ export class AlertsService {
     }
 
     if (resolved !== undefined) {
-      qb.andWhere('alert.isResolved = :resolved', { resolved });
+      // Entity has no isResolved column — resolved-ness is status === 'resolved'.
+      qb.andWhere('alert.status = :resolvedStatus', {
+        resolvedStatus: resolved ? 'resolved' : 'active',
+      });
     }
 
     if (isRead !== undefined) {
