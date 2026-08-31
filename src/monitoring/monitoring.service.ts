@@ -31,7 +31,7 @@ export class MonitoringService {
         roomId,
         from,
         to,
-        limit = 20,
+        limit = 1000,
         offset = 0,
     } = dto;
 
