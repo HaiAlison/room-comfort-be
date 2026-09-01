@@ -11,6 +11,7 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { DevicesModule } from './devices/devices.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -27,9 +28,13 @@ import { MqttModule } from './mqtt/mqtt.module';
     }),
     AlertsModule,
     ActivityLogsModule,
+    // MqttModule must register BEFORE DevicesModule: both mount @Controller('devices'),
+    // and DevicesController's GET /devices/:deviceId would otherwise shadow
+    // DeviceController's static GET /devices/fan (deviceId = "fan" -> 404).
+    MqttModule,
     DevicesModule,
     MonitoringModule,
-    MqttModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
