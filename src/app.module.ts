@@ -11,6 +11,7 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { DevicesModule } from './devices/devices.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MqttModule } from './mqtt/mqtt.module';
     DevicesModule,
     MonitoringModule,
     MqttModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

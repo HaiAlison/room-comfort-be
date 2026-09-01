@@ -21,7 +21,7 @@ export class AlertItemResponseDto {
   @ApiProperty()
   timestamp: Date;
 
-  @ApiPropertyOptional({ type: 'timestamptz', nullable: true })
+  @ApiPropertyOptional({ nullable: true })
   resolvedAt: Date | null;
 
   @ApiPropertyOptional({ nullable: true })
