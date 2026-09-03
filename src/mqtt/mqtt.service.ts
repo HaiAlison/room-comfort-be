@@ -240,6 +240,11 @@ private fanUpdatedAt =
 
     // Fan chỉ phụ thuộc temperature,
     // nên kiểm tra threshold ngay
+    await this.thresholdService
+      .checkTemperatureAlert(
+      temperature,
+    );
+
     await this.evaluateFan(
       temperature,
     );

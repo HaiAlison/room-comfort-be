@@ -8,6 +8,12 @@ import { Repository } from 'typeorm';
 import { Threshold } from 'src/entity/threshold.entity';
 import { UpdateThresholdDto } from './dto/update-threshold.dto';
 
+import { AlertsService } from 'src/alerts/alerts.service';
+import {
+  EAlertSeverity,
+  EAlertStatus,
+} from 'src/utils/common/type';
+
 export type FanCommand =
   'ON' | 'OFF';
 
@@ -17,6 +23,8 @@ export class ThresholdService {
     @InjectRepository(Threshold)
     private readonly thresholdRepository:
       Repository<Threshold>,
+    private readonly alertsService:
+      AlertsService,
   ) {}
 
   async getThreshold() {
@@ -81,4 +89,68 @@ export class ThresholdService {
 
     return 'OFF';
   }
+
+  private temperatureAlertState:
+  'normal' | 'high' | 'low' =
+  'normal';
+
+  async checkTemperatureAlert(
+  temperature: number,
+) {
+  const threshold =
+    await this.getThreshold();
+
+  if (!threshold) {
+    return;
+  }
+
+  let nextState:
+    'normal' | 'high' | 'low' =
+    'normal';
+
+  if (
+    temperature >
+    threshold.maximumTemperature
+  ) {
+    nextState = 'high';
+  } else if (
+    temperature <
+    threshold.minimumTemperature
+  ) {
+    nextState = 'low';
+  }
+
+  if (
+    nextState ===
+    this.temperatureAlertState
+  ) {
+    return;
+  }
+
+  this.temperatureAlertState =
+    nextState;
+
+  if (nextState === 'normal') {
+    return;
+  }
+
+  const message =
+    nextState === 'high'
+      ? `Temperature ${temperature}°C exceeded maximum threshold ${threshold.maximumTemperature}°C`
+      : `Temperature ${temperature}°C dropped below minimum threshold ${threshold.minimumTemperature}°C`;
+
+  await this.alertsService.createAlert({
+    message,
+    threshold: {
+      minimumTemperature:
+        threshold.minimumTemperature,
+
+      maximumTemperature:
+        threshold.maximumTemperature,
+
+      actualTemperature:
+        temperature,
+    },
+  });
+}
 }
