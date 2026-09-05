@@ -16,6 +16,12 @@ export class CreateActivityLogDto {
     type: string;
 
     @ApiPropertyOptional({
+        description: 'Action of the activity',
+    })
+    @IsString()
+    action: string;
+
+    @ApiPropertyOptional({
         description: 'Result of the activity',
     })
     @IsString()

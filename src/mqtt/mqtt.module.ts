@@ -5,10 +5,12 @@ import { MqttService } from './mqtt.service';
 import {
   DeviceController,
 } from './device.controller';
+import { AlertsModule } from 'src/alerts/alerts.module';
 @Module({
   imports: [
     MonitoringModule,
     ThresholdModule,
+    AlertsModule,
   ],
   controllers: [
     DeviceController,
