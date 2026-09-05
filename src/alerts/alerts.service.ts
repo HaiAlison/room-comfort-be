@@ -116,7 +116,8 @@ export class AlertsService {
       await this.activityLogsService.createLog(
         {
           description: `Alert created for room ${saved.roomId}`,
-          result: 'success',
+          action: alert.message,
+          result: 'error',
           type: 'alert',
           metadata: { alertId: saved.id, severity: saved.severity, status: saved.status },
         },
@@ -127,6 +128,7 @@ export class AlertsService {
       await this.activityLogsService.createLog(
         {
           description: `Failed to create alert for room ${payload.roomId}`,
+          action: error.message,
           result: 'error',
           type: 'alert',
           metadata: { error: error.message, payload },
@@ -149,6 +151,7 @@ export class AlertsService {
       await this.activityLogsService.createLog(
         {
           description: `Alert ${id} resolved`,
+          action: `Resolved alert with message ${saved.message}`,
           result: 'success',
           type: 'alert',
           metadata: { alertId: saved.id, roomId: saved.roomId, severity: saved.severity },
@@ -159,7 +162,8 @@ export class AlertsService {
     } catch (error) {
       await this.activityLogsService.createLog(
         {
-          description: `Failed to resolve alert ${id}`,
+          description: `Failed to resolve alert with message ${error.message}`,
+          action: `Failed to resolve alert with message ${error.message}`,
           result: 'error',
           type: 'alert',
           metadata: { alertId: id, error: error.message },

@@ -14,6 +14,9 @@ export class ActivityLog extends BaseTimeStampEntity {
     @Column({ name: 'result' })
     result: string;
 
+    @Column({ name: 'action' })
+    action: string;
+
     @Column({ type: 'jsonb', name: 'metadata', nullable: true })
     metadata: Record<string, any>;
 }

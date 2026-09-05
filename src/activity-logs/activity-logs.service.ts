@@ -17,6 +17,7 @@ export class ActivityLogsService {
     async createLog(dto: CreateActivityLogDto, jwtPayload) {
         const log = this.activityLogRepository.create({
             description: dto.description,
+            action: dto.action,
             result: dto.result,
             metadata: dto.metadata,
             userId: jwtPayload.userId,
@@ -33,6 +34,7 @@ export class ActivityLogsService {
                 'log.id',
                 'log.description',
                 'log.userId',
+                'log.action',
                 'log.result',
                 'log.metadata',
             ])

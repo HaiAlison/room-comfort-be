@@ -11,17 +11,18 @@ import {
   MqttClient,
 } from 'mqtt';
 import { Observable, Subject } from 'rxjs';
+import { AlertsService } from 'src/alerts/alerts.service';
 
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 import {
   FanCommand,
   ThresholdService,
 } from 'src/threshold/threshold.service';
+import { EAlertSeverity, EAlertStatus } from 'src/utils/common/type';
 
 @Injectable()
 export class MqttService
-  implements OnModuleInit, OnModuleDestroy
-{
+  implements OnModuleInit, OnModuleDestroy {
   private readonly logger =
     new Logger(MqttService.name);
 
@@ -36,26 +37,26 @@ export class MqttService
     null;
   private fanOn = false;
 
-private fanMode: 'auto' | 'manual' =
-  'auto';
+  private fanMode: 'auto' | 'manual' =
+    'auto';
 
-private fanReason:
-  | 'Temperature exceeded threshold'
-  | 'Temperature normalized'
-  | 'Manual override' =
-  'Temperature normalized';
+  private fanReason:
+    | 'Temperature exceeded threshold'
+    | 'Temperature normalized'
+    | 'Manual override' =
+    'Temperature normalized';
 
-private fanUpdatedAt =
-  new Date().toISOString();
+  private fanUpdatedAt =
+    new Date().toISOString();
 
-/** Event bus: emits fan state every time it changes (manual or auto). */
-private readonly fanUpdated$ =
-  new Subject<ReturnType<MqttService['getFanState']>>();
+  /** Event bus: emits fan state every time it changes (manual or auto). */
+  private readonly fanUpdated$ =
+    new Subject<ReturnType<MqttService['getFanState']>>();
 
-/** Last emitted on/mode pair — auto-eval republishes the same command
- *  every reading cycle; only push to SSE when state actually changed. */
-private lastEmittedFanKey: string | null =
-  null;
+  /** Last emitted on/mode pair — auto-eval republishes the same command
+   *  every reading cycle; only push to SSE when state actually changed. */
+  private lastEmittedFanKey: string | null =
+    null;
 
   constructor(
     private readonly configService:
@@ -66,6 +67,7 @@ private lastEmittedFanKey: string | null =
 
     private readonly thresholdService:
       ThresholdService,
+    private readonly alertService: AlertsService
   ) {}
 
   onModuleInit() {
@@ -327,128 +329,163 @@ private lastEmittedFanKey: string | null =
   }
 
   private async evaluateFan(
-  temperature: number,
-) {
-  if (this.fanMode === 'manual') {
-    return;
-  }
+    temperature: number,
+  ) {
+    if (this.fanMode === 'manual') {
+      return;
+    }
 
-  const command =
-    await this.thresholdService
-      .evaluateTemperature(
-        temperature,
-      );
+    const command =
+      await this.thresholdService
+        .evaluateTemperature(
+          temperature,
+        );
 
-  if (!command) {
-    this.logger.warn(
-      'No threshold configured',
+    if (!command) {
+      return;
+    }
+
+    const shouldBeOn = command === 'ON';
+    if (this.fanOn === shouldBeOn) {
+      return;
+    }
+
+    const reason =
+      command === 'ON'
+        ? 'Temperature exceeded threshold'
+        : 'Temperature normalized';
+
+    switch (command) {
+      case 'ON': {
+        this.logger.log(
+          `Temperature exceeded threshold: ${temperature}`,
+        );
+        await this.alertService.createAlert({
+          severity: EAlertSeverity.CRITICAL,
+          message: `Temperature exceeded threshold: ${temperature}`,
+          status: EAlertStatus.ACTIVE,
+          threshold: {
+            maximumTemperature: temperature,
+          },
+        });
+        break;
+      }
+      case 'OFF': {
+        this.logger.log(
+          `Temperature normalized: ${temperature}`,
+        );
+        await this.alertService.createAlert({
+          severity: EAlertSeverity.INFO,
+          message: `Temperature has been normalized: ${temperature}`,
+          status: EAlertStatus.RESOLVED,
+          threshold: {
+            minimumTemperature: temperature,
+          },
+        });
+        break;
+      }
+      default:
+        break;
+    }
+
+    await this.publishFanCommand(
+      command,
+      reason,
     );
-    return;
   }
-
-  const reason =
-    command === 'ON'
-      ? 'Temperature exceeded threshold'
-      : 'Temperature normalized';
-
-  await this.publishFanCommand(
-    command,
-    reason,
-  );
-}
 
   private async publishFanCommand(
-  command: FanCommand,
-  reason:
-    | 'Temperature exceeded threshold'
-    | 'Temperature normalized'
-    | 'Manual override',
-) {
-  const fanTopic =
-    this.configService.get<string>(
-      'MQTT_FAN_TOPIC',
-    );
-
-  if (!fanTopic) {
-    this.logger.error(
-      'MQTT_FAN_TOPIC is not configured',
-    );
-
-    throw new ServiceUnavailableException(
-      'MQTT fan topic is not configured',
-    );
-  }
-
-  const onPayload =
-    this.configService.get<string>(
-      'MQTT_FAN_ON_PAYLOAD',
-    ) ?? '1';
-
-  const offPayload =
-    this.configService.get<string>(
-      'MQTT_FAN_OFF_PAYLOAD',
-    ) ?? '0';
-
-  const payload =
-    command === 'ON'
-      ? onPayload
-      : offPayload;
-
-  if (!this.client?.connected) {
-    throw new ServiceUnavailableException(
-      'MQTT broker is not connected',
-    );
-  }
-
-  await new Promise<void>(
-    (resolve, reject) => {
-      this.client!.publish(
-        fanTopic,
-        payload,
-        (error) => {
-          if (error) {
-            this.logger.error(
-              `Cannot publish fan command: ${error.message}`,
-            );
-
-            reject(error);
-            return;
-          }
-
-          resolve();
-        },
+    command: FanCommand,
+    reason:
+      | 'Temperature exceeded threshold'
+      | 'Temperature normalized'
+      | 'Manual override',
+  ) {
+    const fanTopic =
+      this.configService.get<string>(
+        'MQTT_FAN_TOPIC',
       );
-    },
-  );
 
-  this.fanOn =
-    command === 'ON';
+    if (!fanTopic) {
+      this.logger.error(
+        'MQTT_FAN_TOPIC is not configured',
+      );
 
-  this.fanReason =
-    reason;
+      throw new ServiceUnavailableException(
+        'MQTT fan topic is not configured',
+      );
+    }
 
-  this.fanUpdatedAt =
-    new Date().toISOString();
+    const onPayload =
+      this.configService.get<string>(
+        'MQTT_FAN_ON_PAYLOAD',
+      ) ?? '1';
 
-  this.emitFanState();
+    const offPayload =
+      this.configService.get<string>(
+        'MQTT_FAN_OFF_PAYLOAD',
+      ) ?? '0';
 
-  this.logger.log(
-    `Fan command sent: ${payload}`,
-  );
-}
+    const payload =
+      command === 'ON'
+        ? onPayload
+        : offPayload;
+
+    if (!this.client?.connected) {
+      throw new ServiceUnavailableException(
+        'MQTT broker is not connected',
+      );
+    }
+
+    await new Promise<void>(
+      (resolve, reject) => {
+        this.client!.publish(
+          fanTopic,
+          payload,
+          (error) => {
+            if (error) {
+              this.logger.error(
+                `Cannot publish fan command: ${error.message}`,
+              );
+
+              reject(error);
+              return;
+            }
+
+            resolve();
+          },
+        );
+      },
+    );
+
+    this.fanOn =
+      command === 'ON';
+
+    this.fanReason =
+      reason;
+
+    this.fanUpdatedAt =
+      new Date().toISOString();
+
+    this.emitFanState();
+
+    this.logger.log(
+      `Fan command sent: ${payload}`,
+    );
+  }
 
   onModuleDestroy() {
     this.client?.end();
   }
 
   getFanState() {
-  return {
-    on: this.fanOn,
-    reason: this.fanReason,
-    mode: this.fanMode,
-    updatedAt: this.fanUpdatedAt,
-  };
-}
+    return {
+      on: this.fanOn,
+      reason: this.fanReason,
+      mode: this.fanMode,
+      updatedAt: this.fanUpdatedAt,
+    };
+  }
 
   /** SSE stream of fan state changes for `GET /devices/fan/events`. */
   getFanStream(): Observable<
@@ -472,53 +509,53 @@ private lastEmittedFanKey: string | null =
   }
 
   async setManualFan(
-  on: boolean,
-) {
-  const previousMode =
-    this.fanMode;
+    on: boolean,
+  ) {
+    const previousMode =
+      this.fanMode;
 
-  this.fanMode =
-    'manual';
-
-  try {
-    await this.publishFanCommand(
-      on ? 'ON' : 'OFF',
-      'Manual override',
-    );
-  } catch (error) {
     this.fanMode =
-      previousMode;
+      'manual';
 
-    throw error;
+    try {
+      await this.publishFanCommand(
+        on ? 'ON' : 'OFF',
+        'Manual override',
+      );
+    } catch (error) {
+      this.fanMode =
+        previousMode;
+
+      throw error;
+    }
+
+    return this.getFanState();
   }
-
-  return this.getFanState();
-}
 
   async setFanMode(
-  mode: 'auto' | 'manual',
-) {
-  this.fanMode =
-    mode;
+    mode: 'auto' | 'manual',
+  ) {
+    this.fanMode =
+      mode;
 
-  this.fanUpdatedAt =
-    new Date().toISOString();
+    this.fanUpdatedAt =
+      new Date().toISOString();
 
-  this.emitFanState();
+    this.emitFanState();
 
-  if (mode === 'auto') {
-    const reading =
-      await this.monitoringService
-        .getCurrentTemperature();
+    if (mode === 'auto') {
+      const reading =
+        await this.monitoringService
+          .getCurrentTemperature();
 
-    if (reading) {
-      await this.evaluateFan(
-        reading.temperature,
-      );
+      if (reading) {
+        await this.evaluateFan(
+          reading.temperature,
+        );
+      }
     }
-  }
 
-  return this.getFanState();
-}
+    return this.getFanState();
+  }
 
 }
