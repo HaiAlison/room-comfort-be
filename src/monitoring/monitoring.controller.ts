@@ -2,13 +2,16 @@ import {
   Body,
   Controller,
   Get,
+  MessageEvent,
   Put,
   Query,
+  Sse,
 } from '@nestjs/common';
 import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Observable, map } from 'rxjs';
 import { MonitoringService } from './monitoring.service';
 import { GetMonitoringHistoryDto } from './dto/get-monitoring-history.dto';
 import { ThresholdService } from 'src/threshold/threshold.service';
@@ -32,6 +35,32 @@ export class MonitoringController {
   getCurrentTemperature() {
     return this.monitoringService
       .getCurrentTemperature();
+  }
+
+  /**
+   * SSE — FE connects once, server pushes each new sensor reading
+   * as soon as it arrives from MQTT (~15s cycle from the device).
+   *
+   * Usage (FE):
+   *   const es = new EventSource('/monitoring/events');
+   *   es.onmessage = (e) => console.log(JSON.parse(e.data));
+   */
+  @Sse('events')
+  @ApiOperation({
+    summary:
+      'SSE stream — nhận sensor reading real-time',
+    description:
+      'FE mở kết nối 1 lần. Mỗi khi backend lưu reading mới từ MQTT, server push event ngay.',
+  })
+  readingEvents(): Observable<MessageEvent> {
+    return this.monitoringService
+      .getReadingStream()
+      .pipe(
+        map(
+          (reading) =>
+            ({ data: reading }) as MessageEvent,
+        ),
+      );
   }
 
   @Get('history')

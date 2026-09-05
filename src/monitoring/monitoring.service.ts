@@ -1,15 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Observable, Subject } from 'rxjs';
 import { SensorReading } from 'src/entity/sensor-reading.entity';
 import { GetMonitoringHistoryDto } from './dto/get-monitoring-history.dto';
 @Injectable()
 export class MonitoringService {
+  /** Event bus: emits every time a new sensor reading is saved (MQTT). */
+  private readonly readingSaved$ =
+    new Subject<SensorReading>();
+
   constructor(
     @InjectRepository(SensorReading)
     private readonly sensorReadingRepository:
       Repository<SensorReading>,
   ) {}
+
+  /** SSE stream of saved sensor readings for `GET /monitoring/events`. */
+  getReadingStream(): Observable<SensorReading> {
+    return this.readingSaved$.asObservable();
+  }
 
   async getCurrentTemperature() {
     const reading =
@@ -97,8 +107,14 @@ export class MonitoringService {
         humidity,
         });
 
-    return this.sensorReadingRepository.save(
+    const saved =
+        await this.sensorReadingRepository.save(
         reading,
     );
+
+    // Push to SSE subscribers (dashboard real-time updates)
+    this.readingSaved$.next(saved);
+
+    return saved;
     }
 }

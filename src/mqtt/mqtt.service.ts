@@ -10,6 +10,7 @@ import {
   connect,
   MqttClient,
 } from 'mqtt';
+import { Observable, Subject } from 'rxjs';
 
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 import {
@@ -46,6 +47,15 @@ private fanReason:
 
 private fanUpdatedAt =
   new Date().toISOString();
+
+/** Event bus: emits fan state every time it changes (manual or auto). */
+private readonly fanUpdated$ =
+  new Subject<ReturnType<MqttService['getFanState']>>();
+
+/** Last emitted on/mode pair — auto-eval republishes the same command
+ *  every reading cycle; only push to SSE when state actually changed. */
+private lastEmittedFanKey: string | null =
+  null;
 
   constructor(
     private readonly configService:
@@ -420,6 +430,8 @@ private fanUpdatedAt =
   this.fanUpdatedAt =
     new Date().toISOString();
 
+  this.emitFanState();
+
   this.logger.log(
     `Fan command sent: ${payload}`,
   );
@@ -437,6 +449,27 @@ private fanUpdatedAt =
     updatedAt: this.fanUpdatedAt,
   };
 }
+
+  /** SSE stream of fan state changes for `GET /devices/fan/events`. */
+  getFanStream(): Observable<
+    ReturnType<MqttService['getFanState']>
+  > {
+    return this.fanUpdated$.asObservable();
+  }
+
+  private emitFanState() {
+    const state = this.getFanState();
+
+    const key = `${state.on}:${state.mode}:${state.reason}`;
+
+    if (key === this.lastEmittedFanKey) {
+      return;
+    }
+
+    this.lastEmittedFanKey = key;
+
+    this.fanUpdated$.next(state);
+  }
 
   async setManualFan(
   on: boolean,
@@ -470,6 +503,8 @@ private fanUpdatedAt =
 
   this.fanUpdatedAt =
     new Date().toISOString();
+
+  this.emitFanState();
 
   if (mode === 'auto') {
     const reading =
