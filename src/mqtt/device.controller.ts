@@ -16,7 +16,7 @@ import {
   IsIn,
 } from 'class-validator';
 
-import { MqttService } from './mqtt.service';
+import { FanService } from './fan.service';
 
 class UpdateFanDto {
   @IsBoolean()
@@ -35,8 +35,8 @@ class UpdateFanModeDto {
 @Controller('devices')
 export class DeviceController {
   constructor(
-    private readonly mqttService:
-      MqttService,
+    private readonly fanService:
+      FanService,
   ) {}
 
   @Get('fan')
@@ -45,7 +45,7 @@ export class DeviceController {
       'Lấy trạng thái quạt hiện tại',
   })
   getFanState() {
-    return this.mqttService
+    return this.fanService
       .getFanState();
   }
 
@@ -61,7 +61,7 @@ export class DeviceController {
       'FE mở kết nối 1 lần. Mỗi khi quạt đổi trạng thái/chế độ (tay hoặc auto), server push event ngay.',
   })
   fanEvents(): Observable<MessageEvent> {
-    return this.mqttService
+    return this.fanService
       .getFanStream()
       .pipe(
         map(
@@ -79,7 +79,7 @@ export class DeviceController {
   setFan(
     @Body() dto: UpdateFanDto,
   ) {
-    return this.mqttService
+    return this.fanService
       .setManualFan(dto.on);
   }
 
@@ -91,7 +91,7 @@ export class DeviceController {
   setFanMode(
     @Body() dto: UpdateFanModeDto,
   ) {
-    return this.mqttService
+    return this.fanService
       .setFanMode(dto.mode);
   }
 }
