@@ -55,6 +55,7 @@ export class ThresholdService implements OnModuleInit {
   async getThreshold() {
     return this.thresholdRepository
       .createQueryBuilder('threshold')
+      .orderBy('threshold.created_at', 'DESC')
       .getOne();
   }
 
