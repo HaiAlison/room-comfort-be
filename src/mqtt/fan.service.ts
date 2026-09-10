@@ -171,7 +171,7 @@ export class FanService {
     await this.alertService.createAlert({
       severity: EAlertSeverity.CRITICAL,
       message: `Temperature is under the threshold: ${temperature}`,
-      status: EAlertStatus.RESOLVED,
+      status: EAlertStatus.ACTIVE,
       threshold: { minimumTemperature: temperature },
     });
     await this.turnOff('Temperature is under the threshold');
