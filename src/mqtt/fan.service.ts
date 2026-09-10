@@ -165,16 +165,16 @@ export class FanService {
 
     // Dưới ngưỡng → tắt quạt
     this.logger.log(
-      `Temperature normalized: ${temperature}`,
+      `Temperature is under the threshold: ${temperature}`,
     );
 
     await this.alertService.createAlert({
-      severity: EAlertSeverity.INFO,
-      message: `Temperature has been normalized: ${temperature}`,
+      severity: EAlertSeverity.CRITICAL,
+      message: `Temperature is under the threshold: ${temperature}`,
       status: EAlertStatus.RESOLVED,
       threshold: { minimumTemperature: temperature },
     });
-    await this.turnOff('Temperature normalized');
+    await this.turnOff('Temperature is under the threshold');
   }
 
   // ── Core fan actions ──

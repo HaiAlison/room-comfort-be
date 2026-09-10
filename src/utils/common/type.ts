@@ -32,7 +32,7 @@ export enum EActionResult {
     FAILED = "FAILED",
     TIMEOUT = "TIMEOUT",
 }
-export type FanReason = "Temperature exceeded threshold" | "Temperature normalized" | "Manual override";
+export type FanReason = "Temperature exceeded threshold" | "Temperature normalized" | "Temperature is under the threshold" | "Manual override";
 
 export interface User {
     id: string;
