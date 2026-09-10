@@ -221,15 +221,15 @@ export class MqttService
       `Temperature received: ${temperature}`,
     );
 
+    // Lưu reading trước khi evaluate fan
+    // để tránh race condition khi evaluateFan yields event loop
+    await this.saveReadingIfReady();
+
     // Fan chỉ phụ thuộc temperature,
-    // nên kiểm tra threshold ngay
+    // nên kiểm tra threshold sau khi đã lưu
     await this.fanService.evaluateFan(
       temperature,
     );
-
-    // Nếu humidity cũng đã tới,
-    // lưu một SensorReading hoàn chỉnh
-    await this.saveReadingIfReady();
   }
 
   private async handleHumidityMessage(
