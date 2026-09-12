@@ -95,13 +95,10 @@ export class ThresholdService implements OnModuleInit {
       return 'ON';
     }
 
-    // Quạt tắt ngay khi nhiệt độ về LẠI TRONG ngưỡng.
-    //
-    // Trước đây chỗ này chỉ trả 'OFF' khi temperature <
-    // minimumTemperature, nên khoảng giữa min..max trả null =>
-    // không có lệnh nào được phát ra và quạt cứ chạy mãi sau khi
-    // đã bật (vd ngưỡng 25..30: bật ở 31, về 27 vẫn không tắt,
-    // phải xuống dưới 25 mới tắt).
-    return 'OFF';
+    if (temperature < threshold.minimumTemperature) {
+      return 'OFF';
+    }
+
+    return null;
   }
 }
