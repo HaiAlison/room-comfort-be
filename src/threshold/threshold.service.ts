@@ -91,11 +91,11 @@ export class ThresholdService implements OnModuleInit {
     }
 
     // Quạt bật khi vượt ngưỡng trên.
-    if (temperature > threshold.maximumTemperature) {
+    if (temperature >= threshold.maximumTemperature) {
       return 'ON';
     }
 
-    if (temperature < threshold.minimumTemperature) {
+    if (temperature <= threshold.minimumTemperature) {
       return 'OFF';
     }
 
