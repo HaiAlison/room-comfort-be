@@ -1,6 +1,6 @@
 import { EAlertSeverity, EAlertStatus } from "src/utils/common/type";
 import { BaseTimeStampEntity } from "src/utils/config/database/base-entity";
-import { Column, Entity } from "typeorm";
+import { Column, Entity, VirtualColumn } from "typeorm";
 
 @Entity("alerts")
 export class Alert extends BaseTimeStampEntity {
@@ -27,4 +27,9 @@ export class Alert extends BaseTimeStampEntity {
 
     @Column({ name: 'is_read', default: false })
     isRead: boolean;
+
+    @VirtualColumn({
+        query: (alias) => `COALESCE(${alias}.resolved_at, ${alias}.created_at)`
+    })
+    timestamp: Date;
 }

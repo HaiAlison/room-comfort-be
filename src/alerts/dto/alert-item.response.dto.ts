@@ -17,6 +17,10 @@ export class AlertItemResponseDto {
   @ApiProperty({ enum: EAlertStatus, default: EAlertStatus.ACTIVE })
   status: EAlertStatus;
 
+
+  @ApiProperty()
+  timestamp: Date;
+
   @ApiPropertyOptional({ type: 'timestamptz', nullable: true })
   resolvedAt: Date | null;
 

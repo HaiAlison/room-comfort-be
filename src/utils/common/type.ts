@@ -8,7 +8,31 @@ export enum EAlertStatus {
     ACTIVE = "active",
     RESOLVED = "resolved"
 }
-export type FanReason = "Temperature exceeded threshold" | "Temperature normalized" | "Manual override";
+
+export enum EDeviceType {
+    FAN = "FAN",
+    SENSOR = "SENSOR",
+    BUZZER = "BUZZER",
+}
+
+export enum EDeviceStatus {
+    ONLINE = "ONLINE",
+    OFFLINE = "OFFLINE",
+    ERROR = "ERROR",
+}
+
+export enum EActionSource {
+    MANUAL = "MANUAL",
+    AUTO = "AUTO",
+    SYSTEM = "SYSTEM",
+}
+
+export enum EActionResult {
+    SUCCESS = "SUCCESS",
+    FAILED = "FAILED",
+    TIMEOUT = "TIMEOUT",
+}
+export type FanReason = "Temperature exceeded threshold" | "Temperature normalized" | "Temperature is under the threshold" | "Manual override";
 
 export interface User {
     id: string;

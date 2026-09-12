@@ -7,6 +7,8 @@ import { pagination } from 'src/utils/common/handle';
 import { PaginationResponse } from 'src/utils/common/interface';
 import { GetAlertsDto } from './dto/get-alerts.dto';
 import { AlertItemResponseDto } from './dto/alert-item.response.dto';
+import { EAlertStatus } from 'src/utils/common/type';
+import { ActivityLogsService } from 'src/activity-logs/activity-logs.service';
 
 @Injectable()
 export class AlertsService {
@@ -16,6 +18,7 @@ export class AlertsService {
   constructor(
     @InjectRepository(Alert)
     private readonly alertsRepository: Repository<Alert>,
+    private readonly activityLogsService: ActivityLogsService,
   ) {}
 
   /** SSE stream — controller subscribes and pushes to connected FE clients. */
@@ -56,7 +59,7 @@ export class AlertsService {
         'alert.resolvedBy',
         'alert.threshold',
         'alert.isRead',
-      ]);
+      ]).addSelect('alert.timestamp');
 
     // --- Filter strategies ---
     if (roomId) {
@@ -72,7 +75,10 @@ export class AlertsService {
     }
 
     if (resolved !== undefined) {
-      qb.andWhere('alert.isResolved = :resolved', { resolved });
+      // Entity has no isResolved column — resolved-ness is status === 'resolved'.
+      qb.andWhere('alert.status = :resolvedStatus', {
+        resolvedStatus: resolved ? 'resolved' : 'active',
+      });
     }
 
     if (isRead !== undefined) {
@@ -102,10 +108,69 @@ export class AlertsService {
    * jsonb snapshot) and pass it here.
    */
   async createAlert(payload: Partial<Alert>): Promise<Alert> {
-    const alert = this.alertsRepository.create(payload);
-    const saved = await this.alertsRepository.save(alert);
-    // Notify all SSE subscribers that a new alert has been created
-    this.alertCreated$.next(saved);
-    return saved;
+    try {
+      const alert = this.alertsRepository.create(payload);
+      const saved = await this.alertsRepository.save(alert);
+      // Notify all SSE subscribers that a new alert has been created
+      this.alertCreated$.next(saved);
+      await this.activityLogsService.createLog(
+        {
+          description: `Alert created for room ${saved.roomId}`,
+          action: alert.message,
+          result: 'error',
+          type: 'alert',
+          metadata: { alertId: saved.id, severity: saved.severity, status: saved.status },
+        },
+        { userId: 'system' },
+      );
+      return saved;
+    } catch (error) {
+      await this.activityLogsService.createLog(
+        {
+          description: `Failed to create alert for room ${payload.roomId}`,
+          action: error.message,
+          result: 'error',
+          type: 'alert',
+          metadata: { error: error.message, payload },
+        },
+        { userId: 'system' },
+      );
+      throw error;
+    }
+  }
+
+  async resolveAlert(id: string, dto: Partial<Alert>): Promise<Alert> {
+    const alert = await this.alertsRepository.findOneBy({ id });
+    if (!alert) {
+      throw new Error('Alert not found');
+    }
+    try {
+      alert.isRead = true;
+      alert.status = EAlertStatus.RESOLVED;
+      const saved = await this.alertsRepository.save(alert);
+      await this.activityLogsService.createLog(
+        {
+          description: `Alert ${id} resolved`,
+          action: `Resolved alert with message ${saved.message}`,
+          result: 'success',
+          type: 'alert',
+          metadata: { alertId: saved.id, roomId: saved.roomId, severity: saved.severity },
+        },
+        { userId: 'system' },
+      );
+      return saved;
+    } catch (error) {
+      await this.activityLogsService.createLog(
+        {
+          description: `Failed to resolve alert with message ${error.message}`,
+          action: `Failed to resolve alert with message ${error.message}`,
+          result: 'error',
+          type: 'alert',
+          metadata: { alertId: id, error: error.message },
+        },
+        { userId: 'system' },
+      );
+      throw error;
+    }
   }
 }
